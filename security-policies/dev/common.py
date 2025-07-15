@@ -160,6 +160,10 @@ def check_and_fix_numbered_list(text):
     # Join the lines back into a single string and return the result
     return "\n".join(lines)
 
+def replacer(match):
+    key = match.group(1)
+    value = match.group(2)
+    return f'{key}: "{value}"'
 
 def add_new_line_after_period(text):
     # Split the text into lines
@@ -176,27 +180,30 @@ def add_new_line_after_period(text):
     # Join the lines back into a single string and return the result
     return "\n".join(lines)
 
-def format_json_in_text(text):
-    def fix_and_format_json(json_candidate):
-        try:
-            # Attempt to load directly
-            parsed = json.loads(json_candidate)
-        except json.JSONDecodeError:
-            try:
-                # Try to clean up invalid JSON-like text
-                fixed = json_candidate.replace("'", '"')
-                fixed = re.sub(r'(\w+):', r'"\1":', fixed)  # unquoted keys
-                fixed = re.sub(r',\s*}', '}', fixed)         # trailing comma
-                fixed = re.sub(r',\s*]', ']', fixed)         # trailing comma
-                parsed = json.loads(fixed)
-            except Exception:
-                return json_candidate  # Return original if we can't fix
-        return json.dumps(parsed, indent=4)
+def fix_and_format_json(json_candidate):
+    try:
+        if json_candidate.startswith("'") and json_candidate.endswith("'"):
+            json_candidate = json_candidate[1:-1]
+        json_like_str = re.sub(r'(<[^>]+>)"', r'\1', json_candidate)
 
+        json_like_str = re.sub(r'(".*?")\s*:\s*(<[^">]+>)', r'\1: "\2"', json_like_str)
+        parsed = json.loads(json_like_str)
+    except json.JSONDecodeError:
+        try:
+            # Try to clean up invalid JSON-like text
+            fixed = json_candidate.replace("'", '"')
+            fixed = re.sub(r'(\w+):', r'"\1":', fixed)  # unquoted keys
+            fixed = re.sub(r',\s*}', '}', fixed)         # trailing comma
+            fixed = re.sub(r',\s*]', ']', fixed)         # trailing comma
+            parsed = json.loads(fixed)
+        except Exception:
+            return json_candidate  # Return original if we can't fix
+    return json.dumps(parsed, indent=4)
+
+def format_json_in_text(text):
     # Match code blocks that look like JSON
     pattern = r"```(?:json)?\s*({.*?})\s*```"
     matches = list(re.finditer(pattern, text, re.DOTALL))
-
     for match in reversed(matches):  # Reverse to avoid messing up indices
         original_block = match.group(0)
         json_candidate = match.group(1)
@@ -209,6 +216,7 @@ def format_json_in_text(text):
 def fix_code_blocks(text: str):
     text = add_new_line_after_period(text)
     text = format_json_in_text(text)
+    print(text)
     return check_and_fix_numbered_list(text)
 
 
